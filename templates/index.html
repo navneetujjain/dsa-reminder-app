@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSA Reminder</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">DSA Revision Tracker</h3>
+                        {% if user %}
+                            <a href="/logout" class="btn btn-outline-danger">Logout</a>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="card-body">
+                        {% if user %}
+                            <form method="POST" action="/add">
+                                <div class="mb-3">
+                                    <input type="text" name="name" 
+                                           class="form-control" 
+                                           placeholder="Question Name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <input type="url" name="link" 
+                                           class="form-control" 
+                                           placeholder="Question Link (optional)">
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    Add Question
+                                </button>
+                            </form>
+                            
+                            <hr>
+                            
+                            <h4>Recently Added</h4>
+                            <ul class="list-group">
+                                {% for question in user.questions|reverse %}
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <div>
+                                            {{ question.name }}
+                                            {% if question.link %}
+                                                <a href="{{ question.link }}" target="_blank" 
+                                                   class="btn btn-sm btn-link">
+                                                    Open Link
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                        <small class="text-muted">
+                                            {{ question.date_added.strftime('%d %b %Y') }}
+                                        </small>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <a href="/login" class="btn btn-primary">
+                                Login with Google
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
