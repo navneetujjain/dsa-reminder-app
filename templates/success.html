@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-body p-4 text-center">
+                <h2 class="card-title mb-4">Success!</h2>
+                <p>Your DSA question has been added successfully.</p>
+                <p>You'll receive email reminders after 3, 7, and 15 days.</p>
+                <a href="{{ url_for('index') }}" class="btn btn-primary">Add Another Question</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,137 +1,139 @@
-import os
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
-from authlib.integrations.flask_client import OAuth
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime, timedelta
+from datetime import date, timedelta
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+import pytz
+import os
+from config import Config
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///dsa.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config.from_object(Config)
 
-# Initialize extensions
-db = SQLAlchemy(app)
-oauth = OAuth(app)
+db = SQLAlchemy()
+db.init_app(app)
 
-# Configure Google OAuth
-oauth.register(
-    name='google',
-    client_id=os.getenv('GOOGLE_CLIENT_ID'),
-    client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
-    access_token_url='https://accounts.google.com/o/oauth2/token',
-    access_token_params=None,
-    authorize_url='https://accounts.google.com/o/oauth2/auth',
-    authorize_params=None,
-    api_base_url='https://www.googleapis.com/oauth2/v1/',
-    client_kwargs={'scope': 'openid email profile'},
-)
-
-# Database Models
-class User(db.Model):
+# Models
+class DSAQuestion(db.Model):
+    __tablename__ = 'dsa_questions'
+    
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    questions = db.relationship('Question', backref='user', lazy=True)
-
-class Question(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), nullable=False)
-    link = db.Column(db.String(500))
-    date_added = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-
-# Email Sending Function
-def send_reminder_email(user_email, questions):
-    message = Mail(
-        from_email='dsa-reminder@example.com',
-        to_emails=user_email,
-        subject='📚 Your Daily DSA Revision Reminder')
-    
-    content = "<h1>Questions to Revise Today:</h1><ul>"
-    for q in questions:
-        content += f"<li>{q.name}"
-        if q.link:
-            content += f" <a href='{q.link}'>Link</a>"
-        content += "</li>"
-    content += "</ul>"
-    
-    message.add_content(content, "text/html")
-    
-    try:
-        sg = SendGridAPIClient(os.getenv('SENDGRID_API_KEY'))
-        response = sg.send(message)
-    except Exception as e:
-        print(f"Email error: {str(e)}")
-
-# Scheduled Job
-def daily_reminder_job():
-    with app.app_context():
-        target_dates = [datetime.utcnow() - timedelta(days=d) for d in [3,7,15]]
-        
-        for user in User.query.all():
-            questions = Question.query.filter(
-                Question.user_id == user.id,
-                db.func.date(Question.date_added).in_([d.date() for d in target_dates])
-            ).all()
-            
-            if questions:
-                send_reminder_email(user.email, questions)
-
-# Initialize scheduler
-scheduler = BackgroundScheduler()
-scheduler.add_job(daily_reminder_job, 'cron', hour=4, minute=30)  # 10am IST = 4:30 UTC
-scheduler.start()
+    email = db.Column(db.String(120), nullable=False)
+    question_name = db.Column(db.String(200), nullable=False)
+    question_link = db.Column(db.String(300))
+    created_at = db.Column(db.Date, default=date.today)
+    reminded_3_days = db.Column(db.Boolean, default=False)
+    reminded_7_days = db.Column(db.Boolean, default=False)
+    reminded_15_days = db.Column(db.Boolean, default=False)
 
 # Routes
-@app.route('/')
-def home():
-    if 'user' not in session:
-        return redirect(url_for('login'))
-    user = User.query.get(session['user']['id'])
-    return render_template('index.html', user=user)
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        email = request.form['email']
+        question_name = request.form['question_name']
+        question_link = request.form.get('question_link', '')
 
-@app.route('/login')
-def login():
-    redirect_uri = url_for('authorize', _external=True)
-    print(f"Using redirect URI: {redirect_uri}")
-    return oauth.google.authorize_redirect(redirect_uri)
+        if not email or not question_name:
+            flash('Email and Question Name are required!', 'danger')
+            return redirect(url_for('index'))
 
-@app.route('/authorize')
-def authorize():
-    token = oauth.google.authorize_access_token()
-    user_info = oauth.google.get('userinfo').json()
-    
-    user = User.query.filter_by(email=user_info['email']).first()
-    if not user:
-        user = User(email=user_info['email'])
-        db.session.add(user)
+        new_question = DSAQuestion(
+            email=email,
+            question_name=question_name,
+            question_link=question_link
+        )
+        db.session.add(new_question)
         db.session.commit()
-    
-    session['user'] = {'id': user.id, 'email': user.email}
-    return redirect(url_for('home'))
 
-@app.route('/add', methods=['POST'])
-def add_question():
-    if 'user' not in session:
-        return redirect(url_for('login'))
+        flash('Question added successfully! You will receive reminders.', 'success')
+        return redirect(url_for('success'))
+
+    return render_template('index.html')
+
+@app.route('/success')
+def success():
+    return render_template('success.html')
+
+# Email sending function
+def send_consolidated_email(email, questions, today):
+    subject = "DSA Revision Reminders"
+    content = "<h2>Your pending DSA revisions:</h2>"
     
-    new_question = Question(
-        name=request.form['name'],
-        link=request.form.get('link'),
-        user_id=session['user']['id']
+    for reminder_type, q_list in questions.items():
+        if q_list:
+            days = int(reminder_type.split("_")[0])
+            content += f"<h3>Due {days}-day reminders:</h3><ul>"
+            for q in q_list:
+                content += f"<li>{q.question_name}"
+                if q.question_link:
+                    content += f' (<a href="{q.question_link}">Link</a>)'
+                content += "</li>"
+            content += "</ul>"
+    
+    message = Mail(
+        from_email=app.config['SENDER_EMAIL'],
+        to_emails=email,
+        subject=subject,
+        html_content=content
     )
-    db.session.add(new_question)
-    db.session.commit()
-    return redirect(url_for('home'))
+    
+    try:
+        sg = SendGridAPIClient(app.config['SENDGRID_API_KEY'])
+        sg.send(message)
+        
+        # Mark all as reminded
+        for q_list in questions.values():
+            for q in q_list:
+                if "3_days" in questions and q in questions["3_days"]:
+                    q.reminded_3_days = True
+                if "7_days" in questions and q in questions["7_days"]:
+                    q.reminded_7_days = True
+                if "15_days" in questions and q in questions["15_days"]:
+                    q.reminded_15_days = True
+                    
+    except Exception as e:
+        print(f"Error sending to {email}: {str(e)}")
 
-@app.route('/logout')
-def logout():
-    session.pop('user', None)
-    return redirect(url_for('home'))
+# Scheduled job
+def check_and_send_reminders():
+    today = date.today()
+    users = {}
+
+    # Group questions by email and reminder type
+    for question in DSAQuestion.query.all():
+        if question.email not in users:
+            users[question.email] = {"3_days": [], "7_days": [], "15_days": []}
+        
+        if not question.reminded_3_days and question.created_at <= today - timedelta(days=3):
+            users[question.email]["3_days"].append(question)
+        
+        if not question.reminded_7_days and question.created_at <= today - timedelta(days=7):
+            users[question.email]["7_days"].append(question)
+        
+        if not question.reminded_15_days and question.created_at <= today - timedelta(days=15):
+            users[question.email]["15_days"].append(question)
+
+    # Send one consolidated email per user
+    for email, questions in users.items():
+        if any(questions.values()):  # Only if there are pending reminders
+            send_consolidated_email(email, questions, today)
+    
+    db.session.commit()
+
+# Initialize scheduler
+scheduler = BackgroundScheduler(timezone=pytz.timezone(app.config['TIMEZONE']))
+scheduler.add_job(check_and_send_reminders, 'cron', hour=10, minute=0)  # 10 AM IST
+scheduler.start()
+
+# Create database tables
+with app.app_context():
+    db.create_all()
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+    # Only for local development
     app.run(debug=True)
+else:
+    # For production (Render/Gunicorn)
+    gunicorn_app = app
