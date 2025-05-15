@@ -56,6 +56,10 @@ def index():
 def success():
     return render_template('success.html')
 
+@app.route("/ping")
+def ping():
+    return "pong", 200
+
 # Email sending function
 def send_consolidated_email(email, questions, today):
     subject = "DSA Revision Reminders"
