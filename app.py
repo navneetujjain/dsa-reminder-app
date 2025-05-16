@@ -61,12 +61,6 @@ def success():
 def ping():
     return "pong", 200
 
-@app.route('/debug-db')
-def debug_db():
-    from tabulate import tabulate
-    results = db.session.execute(text("SELECT * FROM dsa_questions LIMIT 10")).fetchall()
-    return f"<pre>{tabulate(results)}</pre>"
-
 @app.route('/test-scheduler')
 def test_scheduler():
     with app.app_context():
