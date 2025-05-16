@@ -7,6 +7,7 @@ from sendgrid.helpers.mail import Mail
 import pytz
 import os
 from config import Config
+from sqlalchemy import text
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -59,6 +60,20 @@ def success():
 @app.route("/ping")
 def ping():
     return "pong", 200
+
+@app.route('/debug-db')
+def debug_db():
+    from tabulate import tabulate
+    results = db.session.execute(text("SELECT * FROM dsa_questions LIMIT 10")).fetchall()
+    return f"<pre>{tabulate(results)}</pre>"
+
+@app.route('/test-scheduler')
+def test_scheduler():
+    with app.app_context():
+        check_and_send_reminders()
+    return "Scheduler test complete"
+
+
 
 # Email sending function
 def send_consolidated_email(email, questions, today):
@@ -127,9 +142,33 @@ def check_and_send_reminders():
     db.session.commit()
 
 # Initialize scheduler
-scheduler = BackgroundScheduler(timezone=pytz.timezone(app.config['TIMEZONE']))
-scheduler.add_job(check_and_send_reminders, 'cron', hour=10, minute=0)  # 10 AM IST
-scheduler.start()
+#scheduler = BackgroundScheduler(timezone=pytz.timezone(app.config['TIMEZONE']))
+#scheduler.add_job(check_and_send_reminders, 'cron', hour=10, minute=0)  # 10 AM IST
+#scheduler.start()
+
+def init_scheduler():
+    scheduler = BackgroundScheduler(timezone=pytz.timezone(app.config['TIMEZONE']))
+    
+    def job_with_context():
+        with app.app_context():
+            try:
+                check_and_send_reminders()
+                app.logger.info("Successfully ran reminders job")
+            except Exception as e:
+                app.logger.error(f"Reminder job failed: {str(e)}")
+    
+    scheduler.add_job(
+        job_with_context,
+        'cron',
+        hour=10,
+        minute=0,
+        timezone='Asia/Kolkata'
+    )
+    scheduler.start()
+
+with app.app_context():
+    init_scheduler()
+
 
 # Create database tables
 with app.app_context():
@@ -141,3 +180,4 @@ if __name__ == '__main__':
 else:
     # For production (Render/Gunicorn)
     gunicorn_app = app
+
