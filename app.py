@@ -8,12 +8,17 @@ import pytz
 import os
 from config import Config
 from sqlalchemy import text
+from datetime import datetime
 
 app = Flask(__name__)
 app.config.from_object(Config)
 
 db = SQLAlchemy()
 db.init_app(app)
+
+def get_ist_today():
+    ist = pytz.timezone('Asia/Kolkata')
+    return datetime.now(ist).date()
 
 # Models
 class DSAQuestion(db.Model):
@@ -23,7 +28,7 @@ class DSAQuestion(db.Model):
     email = db.Column(db.String(120), nullable=False)
     question_name = db.Column(db.String(200), nullable=False)
     question_link = db.Column(db.String(300))
-    created_at = db.Column(db.Date, default=date.today)
+    created_at = db.Column(db.Date, default=get_ist_today)
     reminded_3_days = db.Column(db.Boolean, default=False)
     reminded_7_days = db.Column(db.Boolean, default=False)
     reminded_15_days = db.Column(db.Boolean, default=False)
