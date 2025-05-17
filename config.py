@@ -11,3 +11,4 @@ class Config:
     SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
     SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'your-email@example.com')
     TIMEZONE = 'Asia/Kolkata'  # IST timezone
+    LOG_LEVEL = 'INFO'
