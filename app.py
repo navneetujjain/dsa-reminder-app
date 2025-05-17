@@ -143,7 +143,8 @@ def check_and_send_reminders():
                     users[question.email] = {
                         "3_days": [],
                         "7_days": [],
-                        "15_days": []
+                        "15_days": [],
+                        "all_3_days": []  #Added for scheduler testing on 18 May, should be deleted post that
                     }
 
                 # Check 3-day reminders
