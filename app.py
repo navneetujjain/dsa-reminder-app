@@ -10,6 +10,7 @@ from config import Config
 from sqlalchemy import text
 from datetime import datetime
 import atexit
+import logging
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -133,7 +134,7 @@ def check_and_send_reminders():
         app.logger.info(f"[{datetime.now()}] Inside check and send reminders")
         try:
             app.logger.info(f"\n[{datetime.now()}] Starting reminder job")
-            today = date.today()
+            today = datetime.now(pytz.timezone('Asia/Kolkata')).date()
             users = {}
 
             # Group questions by email and reminder type
