@@ -85,7 +85,7 @@ def test_scheduler():
 
 # Email sending function
 def send_consolidated_email(email, questions, today):
-    app.logger.info(f"[{datetime.now()}] Starting email send to {email}")
+    app.logger.info(f"[{datetime.now(pytz.timezone('Asia/Kolkata'))}] Starting email send to {email}")
     app.logger.debug(f"Processing questions: {questions}")
     subject = "DSA Revision Reminders"
     content = "<h2>Your pending DSA revisions:</h2>"
@@ -114,7 +114,7 @@ def send_consolidated_email(email, questions, today):
     try:
         sg = SendGridAPIClient(app.config['SENDGRID_API_KEY'])
         sg.send(message)
-        app.logger.info(f"[{datetime.now()}] Email sent to {email}.")
+        app.logger.info(f"[{datetime.now(pytz.timezone('Asia/Kolkata'))}] Email sent to {email}.")
         
         # Mark all as reminded
         for q_list in questions.values():
@@ -127,13 +127,13 @@ def send_consolidated_email(email, questions, today):
                     q.reminded_15_days = True
                     
     except Exception as e:
-        app.logger.error(f"[{datetime.now()}] Email failed to {email}. Error: {str(e)}")
+        app.logger.error(f"[{datetime.now(pytz.timezone('Asia/Kolkata'))}] Email failed to {email}. Error: {str(e)}")
         raise 
 
 # Scheduled job
 def check_and_send_reminders():
     with app.app_context():  # Critical: Ensures database access works
-        app.logger.info(f"[{datetime.now()}] Inside check and send reminders")
+        app.logger.info(f"[{datetime.now(pytz.timezone('Asia/Kolkata'))}] Inside check and send reminders")
         try:
             app.logger.info(f"\n[{datetime.now()}] Starting reminder job")
             today = datetime.now(pytz.timezone('Asia/Kolkata')).date()
@@ -166,7 +166,7 @@ def check_and_send_reminders():
             # Send consolidated emails
             for email, questions in users.items():
                 if any(questions.values()):  # Only if reminders exist
-                    app.logger.info(f"[{datetime.now()}] Send Consolidated Emails is going to get called")
+                    app.logger.info(f"[{datetime.now(pytz.timezone('Asia/Kolkata'))}] Send Consolidated Emails is going to get called")
                     send_consolidated_email(email, questions, today)
                     
                     # Update reminder flags after sending
@@ -180,7 +180,7 @@ def check_and_send_reminders():
                                 question.reminded_15_days = True
 
             db.session.commit()
-            app.logger.info(f"Successfully processed reminders at {datetime.now()}")
+            app.logger.info(f"Successfully processed reminders at {datetime.now(pytz.timezone('Asia/Kolkata'))}")
 
         except Exception as e:
             db.session.rollback()
