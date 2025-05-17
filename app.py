@@ -110,8 +110,8 @@ def send_consolidated_email(email, questions, today):
     
     try:
         sg = SendGridAPIClient(app.config['SENDGRID_API_KEY'])
-        response = sg.send(message)
-        app.logger.info(f"[{datetime.now()}] Email sent to {email}. Status: {response.status_code}")
+        sg.send(message)
+        app.logger.info(f"[{datetime.now()}] Email sent to {email}.")
         
         # Mark all as reminded
         for q_list in questions.values():
