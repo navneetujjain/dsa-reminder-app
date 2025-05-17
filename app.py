@@ -9,9 +9,15 @@ import os
 from config import Config
 from sqlalchemy import text
 from datetime import datetime
+import atexit
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+logging.basicConfig(
+    level=app.config['LOG_LEVEL'],
+    format='[%(asctime)s] %(levelname)s: %(message)s'
+)
 
 db = SQLAlchemy()
 db.init_app(app)
@@ -76,12 +82,15 @@ def test_scheduler():
 
 # Email sending function
 def send_consolidated_email(email, questions, today):
+    app.logger.info(f"[{datetime.now()}] Starting email send to {email}")
+    app.logger.debug(f"Processing questions: {questions}")
     subject = "DSA Revision Reminders"
     content = "<h2>Your pending DSA revisions:</h2>"
     
     for reminder_type, q_list in questions.items():
         if q_list:
             days = int(reminder_type.split("_")[0])
+            app.logger.info(f"Preparing {days}-day reminders ({len(q_list)} questions)")
             content += f"<h3>Due {days}-day reminders:</h3><ul>"
             for q in q_list:
                 content += f"<li>{q.question_name}"
@@ -96,10 +105,13 @@ def send_consolidated_email(email, questions, today):
         subject=subject,
         html_content=content
     )
+
+    app.logger.debug(f"Email payload prepared for {email}")
     
     try:
         sg = SendGridAPIClient(app.config['SENDGRID_API_KEY'])
-        sg.send(message)
+        response = sg.send(message)
+        app.logger.info(f"[{datetime.now()}] Email sent to {email}. Status: {response.status_code}")
         
         # Mark all as reminded
         for q_list in questions.values():
@@ -112,61 +124,80 @@ def send_consolidated_email(email, questions, today):
                     q.reminded_15_days = True
                     
     except Exception as e:
-        print(f"Error sending to {email}: {str(e)}")
+        app.logger.error(f"[{datetime.now()}] Email failed to {email}. Error: {str(e)}")
+        raise 
 
 # Scheduled job
 def check_and_send_reminders():
-    today = date.today()
-    users = {}
+    with app.app_context():  # Critical: Ensures database access works
+        app.logger.info(f"[{datetime.now()}] Inside check and send reminders")
+        try:
+            app.logger.info(f"\n[{datetime.now()}] Starting reminder job")
+            today = date.today()
+            users = {}
 
-    # Group questions by email and reminder type
-    for question in DSAQuestion.query.all():
-        if question.email not in users:
-            users[question.email] = {"3_days": [], "7_days": [], "15_days": []}
-        
-        if not question.reminded_3_days and question.created_at <= today - timedelta(days=3):
-            users[question.email]["3_days"].append(question)
-        
-        if not question.reminded_7_days and question.created_at <= today - timedelta(days=7):
-            users[question.email]["7_days"].append(question)
-        
-        if not question.reminded_15_days and question.created_at <= today - timedelta(days=15):
-            users[question.email]["15_days"].append(question)
+            # Group questions by email and reminder type
+            for question in DSAQuestion.query.all():
+                if question.email not in users:
+                    users[question.email] = {
+                        "3_days": [],
+                        "7_days": [],
+                        "15_days": []
+                    }
 
-    # Send one consolidated email per user
-    for email, questions in users.items():
-        if any(questions.values()):  # Only if there are pending reminders
-            send_consolidated_email(email, questions, today)
-    
-    db.session.commit()
+                # Check 3-day reminders
+                if (not question.reminded_3_days and 
+                    question.created_at <= today - timedelta(days=3)):
+                    users[question.email]["3_days"].append(question)
+
+                # Check 7-day reminders
+                if (not question.reminded_7_days and 
+                    question.created_at <= today - timedelta(days=7)):
+                    users[question.email]["7_days"].append(question)
+
+                # Check 15-day reminders
+                if (not question.reminded_15_days and 
+                    question.created_at <= today - timedelta(days=15)):
+                    users[question.email]["15_days"].append(question)
+
+            # Send consolidated emails
+            for email, questions in users.items():
+                if any(questions.values()):  # Only if reminders exist
+                    app.logger.info(f"[{datetime.now()}] Send Consolidated Emails is going to get called")
+                    send_consolidated_email(email, questions, today)
+                    
+                    # Update reminder flags after sending
+                    for q_list in questions.values():
+                        for question in q_list:
+                            if q_list is questions["3_days"]:
+                                question.reminded_3_days = True
+                            elif q_list is questions["7_days"]:
+                                question.reminded_7_days = True
+                            elif q_list is questions["15_days"]:
+                                question.reminded_15_days = True
+
+            db.session.commit()
+            app.logger.info(f"Successfully processed reminders at {datetime.now()}")
+
+        except Exception as e:
+            db.session.rollback()
+            app.logger.critical(f"Reminder job crashed: {str(e)}")
+            raise
 
 # Initialize scheduler
-#scheduler = BackgroundScheduler(timezone=pytz.timezone(app.config['TIMEZONE']))
-#scheduler.add_job(check_and_send_reminders, 'cron', hour=10, minute=0)  # 10 AM IST
-#scheduler.start()
+scheduler = BackgroundScheduler(timezone=pytz.timezone(app.config['TIMEZONE']))
+scheduler.add_job(
+    check_and_send_reminders,
+    'cron',
+    hour=10,
+    minute=0,
+    timezone='Asia/Kolkata'  # 10 AM IST
+)
+scheduler.start()
 
-def init_scheduler():
-    scheduler = BackgroundScheduler(timezone=pytz.timezone(app.config['TIMEZONE']))
-    
-    def job_with_context():
-        with app.app_context():
-            try:
-                check_and_send_reminders()
-                app.logger.info("Successfully ran reminders job")
-            except Exception as e:
-                app.logger.error(f"Reminder job failed: {str(e)}")
-    
-    scheduler.add_job(
-        job_with_context,
-        'cron',
-        hour=10,
-        minute=0,
-        timezone='Asia/Kolkata'
-    )
-    scheduler.start()
+atexit.register(lambda: scheduler.shutdown()) #Ensure graceful closure and clean start of scheduler
 
-with app.app_context():
-    init_scheduler()
+
 
 
 # Create database tables
@@ -179,4 +210,3 @@ if __name__ == '__main__':
 else:
     # For production (Render/Gunicorn)
     gunicorn_app = app
-
