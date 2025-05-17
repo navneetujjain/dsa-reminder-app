@@ -150,6 +150,10 @@ def check_and_send_reminders():
                 if (not question.reminded_3_days and 
                     question.created_at <= today - timedelta(days=3)):
                     users[question.email]["3_days"].append(question)
+                
+                #Adding this for scheduler testing on 18 May, should be removed after today
+                if question.created_at <= today - timedelta(days=3):
+                    users[question.email]["all_3_days"].append(question)
 
                 # Check 7-day reminders
                 if (not question.reminded_7_days and 
