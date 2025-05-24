@@ -41,12 +41,6 @@ class DSAQuestion(db.Model):
     reminded_15_days = db.Column(db.Boolean, default=False)
 
 # Routes
-@app.route('/debug-db')
-def debug_db():
-    from tabulate import tabulate
-    results = db.session.execute(text("SELECT * FROM dsa_questions ORDER BY id")).fetchall()
-    return f"<pre>{tabulate(results)}</pre>"
-
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
