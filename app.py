@@ -87,8 +87,8 @@ def test_scheduler():
 def send_consolidated_email(email, questions, today):
     app.logger.info(f"[{datetime.now(pytz.timezone('Asia/Kolkata'))}] Starting email send to {email}")
     app.logger.debug(f"Processing questions: {questions}")
-    subject = "DSA Revision Reminders"
-    content = "<h2>Your pending DSA revisions:</h2>"
+    subject = "Revision Reminders"
+    content = "<h2>Your pending revision Topics/Questions:</h2>"
     
     for reminder_type, q_list in questions.items():
         if q_list:
