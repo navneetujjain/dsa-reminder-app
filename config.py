@@ -12,3 +12,13 @@ class Config:
     SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'your-email@example.com')
     TIMEZONE = 'Asia/Kolkata'  # IST timezone
     LOG_LEVEL = 'INFO'
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,  # 5 minutes
+        "pool_size": 5,
+        "max_overflow": 10,
+        "connect_args": {
+            "connect_timeout": 10,
+            "sslmode": "require"  # Explicit SSL
+        }
+    }
