@@ -74,11 +74,12 @@ def ping():
     return "pong", 200
 
 #This was for 18 May, 25 May Testing, successfully tested, everything is fine.
-@app.route('/test-scheduler')
+```@app.route('/test-scheduler')
 def test_scheduler():
     with app.app_context():
         check_and_send_reminders()
     return "Scheduler test complete"
+```
 
 
 
