@@ -11,8 +11,9 @@ class Config:
     MAIL_SERVER = 'email-smtp.us-east-1.amazonaws.com'
     MAIL_PORT = 587
     MAIL_USE_TLS = True
-    MAIL_USERNAME = 'YOUR_SMTP_USERNAME' 
-    MAIL_PASSWORD = 'YOUR_SMTP_PASSWORD' 
+    MAIL_USERNAME = os.getenv('AWS_SES_SMTP_USERNAME')
+    MAIL_PASSWORD = os.getenv('AWS_SES_SMTP_PASSWORD')
+    MAIL_DEFAULT_SENDER = os.getenv('SENDER_EMAIL')
     TIMEZONE = 'Asia/Kolkata'  # IST timezone
     LOG_LEVEL = 'INFO'
     SQLALCHEMY_ENGINE_OPTIONS = {
