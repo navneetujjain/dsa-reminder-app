@@ -8,8 +8,11 @@ class Config:
     #SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance', 'dsa_reminder.db')
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL').replace('postgres://', 'postgresql://', 1)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
-    SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'your-email@example.com')
+    MAIL_SERVER = 'email-smtp.us-east-1.amazonaws.com'
+    MAIL_PORT = 587
+    MAIL_USE_TLS = True
+    MAIL_USERNAME = 'YOUR_SMTP_USERNAME' 
+    MAIL_PASSWORD = 'YOUR_SMTP_PASSWORD' 
     TIMEZONE = 'Asia/Kolkata'  # IST timezone
     LOG_LEVEL = 'INFO'
     SQLALCHEMY_ENGINE_OPTIONS = {
