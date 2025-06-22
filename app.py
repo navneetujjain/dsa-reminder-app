@@ -2,8 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import date, timedelta
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
 import pytz
 import os
 from config import Config
@@ -11,6 +9,9 @@ from sqlalchemy import text
 from datetime import datetime
 import atexit
 import logging
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -86,36 +87,51 @@ def test_scheduler():
 
 # Email sending function
 def send_consolidated_email(email, questions, today):
-    app.logger.info(f"[{datetime.now(pytz.timezone('Asia/Kolkata'))}] Starting email send to {email}")
+    ist = pytz.timezone('Asia/Kolkata')
+    current_time = datetime.now(ist)
+    
+    app.logger.info(f"[{current_time}] Starting email send to {email}")
     app.logger.debug(f"Processing questions: {questions}")
-    subject = "Revision Reminders"
-    content = "<h2>Your pending revision Topics/Questions:</h2>"
-    
-    for reminder_type, q_list in questions.items():
-        if q_list:
-            days = int(reminder_type.split("_")[0])
-            app.logger.info(f"Preparing {days}-day reminders ({len(q_list)} questions)")
-            content += f"<h3>Due {days}-day reminders:</h3><ul>"
-            for q in q_list:
-                content += f"<li>{q.question_name}"
-                if q.question_link:
-                    content += f' (<a href="{q.question_link}">Link</a>)'
-                content += "</li>"
-            content += "</ul>"
-    
-    message = Mail(
-        from_email=app.config['SENDER_EMAIL'],
-        to_emails=email,
-        subject=subject,
-        html_content=content
-    )
-
-    app.logger.debug(f"Email payload prepared for {email}")
     
     try:
-        sg = SendGridAPIClient(app.config['SENDGRID_API_KEY'])
-        sg.send(message)
-        app.logger.info(f"[{datetime.now(pytz.timezone('Asia/Kolkata'))}] Email sent to {email}.")
+        # Build email content
+        subject = "Revision Reminders"
+        html_content = "<h2>Your pending revision Topics/Questions:</h2>"
+        
+        for reminder_type, q_list in questions.items():
+            if q_list:
+                days = int(reminder_type.split("_")[0])
+                app.logger.info(f"Preparing {days}-day reminders ({len(q_list)} questions)")
+                html_content += f"<h3>Due {days}-day reminders:</h3><ul>"
+                for q in q_list:
+                    html_content += f"<li>{q.question_name}"
+                    if q.question_link:
+                        html_content += f' (<a href="{q.question_link}">Link</a>)'
+                    html_content += "</li>"
+                html_content += "</ul>"
+        
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = app.config['MAIL_DEFAULT_SENDER']
+        msg['To'] = email
+        msg.attach(MIMEText(html_content, 'html'))
+        
+        app.logger.debug(f"Email payload prepared for {email}")
+        
+        # Send via SES SMTP
+        with smtplib.SMTP(
+            host=app.config['MAIL_SERVER'],
+            port=app.config['MAIL_PORT']
+        ) as server:
+            server.starttls()
+            server.login(
+                user=app.config['MAIL_USERNAME'],
+                password=app.config['MAIL_PASSWORD']
+            )
+            server.send_message(msg)
+        
+        app.logger.info(f"[{current_time}] Email sent to {email} via AWS SES")
         
         # Mark all as reminded
         for q_list in questions.values():
@@ -126,10 +142,12 @@ def send_consolidated_email(email, questions, today):
                     q.reminded_7_days = True
                 if "15_days" in questions and q in questions["15_days"]:
                     q.reminded_15_days = True
-                    
+        
+        return True
+        
     except Exception as e:
-        app.logger.error(f"[{datetime.now(pytz.timezone('Asia/Kolkata'))}] Email failed to {email}. Error: {str(e)}")
-        raise 
+        app.logger.error(f"[{current_time}] AWS SES email failed: {str(e)}")
+        raise
 
 # Scheduled job
 def check_and_send_reminders():
