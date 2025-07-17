@@ -76,11 +76,12 @@ def ping():
 
 #This was for 18 May, 25 May Testing, successfully tested, everything is fine.
 #Again adding for 22 June Testing as Email Sending service is changed -- Testing successful.
-@app.route('/test-scheduler')
+'''@app.route('/test-scheduler')
 def test_scheduler():
     with app.app_context():
         check_and_send_reminders()
     return "Scheduler test complete"
+'''
 
 
 
