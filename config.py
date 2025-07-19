@@ -8,7 +8,7 @@ class Config:
     #SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance', 'dsa_reminder.db')
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL').replace('postgres://', 'postgresql://', 1)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    MAIL_SERVER = 'email-smtp.us-east-1.amazonaws.com'
+    MAIL_SERVER = 'smtp.mailersend.net'
     MAIL_PORT = 587
     MAIL_USE_TLS = True
     MAIL_USERNAME = os.getenv('AWS_SES_SMTP_USERNAME')
