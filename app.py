@@ -76,12 +76,11 @@ def ping():
 
 #This was for 18 May, 25 May Testing, successfully tested, everything is fine.
 #Again adding for 22 June Testing as Email Sending service is changed -- Testing successful.
-'''@app.route('/test-scheduler')
+@app.route('/test-scheduler')
 def test_scheduler():
     with app.app_context():
         check_and_send_reminders()
     return "Scheduler test complete"
-'''
 
 
 
@@ -134,7 +133,7 @@ def send_consolidated_email(email, questions, today):
             )
             server.send_message(msg)
         
-        app.logger.info(f"[{current_time}] Email sent to {email} via AWS SES")
+        app.logger.info(f"[{current_time}] Email sent to {email} via MailSender")
         
         # Mark all as reminded
         for q_list in questions.values():
@@ -149,7 +148,7 @@ def send_consolidated_email(email, questions, today):
         return True
         
     except Exception as e:
-        app.logger.error(f"[{current_time}] AWS SES email failed: {str(e)}")
+        app.logger.error(f"[{current_time}] MailSender email failed: {str(e)}")
         raise
 
 # Scheduled job
